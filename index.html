@@ -24,7 +24,7 @@ button:hover{background:var(--or);color:var(--bg)}
 .mod{border-top:1px solid var(--ln);padding:5px 0}input:disabled,select:disabled{opacity:.35}
 #res img{max-width:100%;border:1px solid var(--or);border-radius:6px;margin-top:6px}
 </style></head><body>
-<h1>✦ Atelier GIF géométrique ✦ <small style="font:12px system-ui;opacity:.6">v8</small></h1>
+<h1>✦ Atelier GIF géométrique ✦ <small style="font:12px system-ui;opacity:.6">v9</small></h1>
 <p class="sub">Importez une image : elle reste intacte, telle quelle. La géométrie en dessous ne sert qu’à la transformer ensuite : couleurs, formes tendues, effets et géométrie sacrée discrète.</p>
 <div class="wrap">
 <div class="stage"><canvas id="cv" width="420" height="420"></canvas>
@@ -273,20 +273,21 @@ function lzw(ix){const by=[];let cu=0,nb=0,size=9,next=258;const emit=c=>{cu|=c<
  for(let i=1;i<ix.length;i++){const k=p<<8|ix[i],v=d.get(k);if(v!==undefined){p=v;continue}
   emit(p);d.set(k,next++);if(next-1>=(1<<size)&&size<12)size++;if(next>=4096){emit(256);d.clear();size=9;next=258}p=ix[i]}
  emit(p);emit(257);if(nb>0)by.push(cu&255);return by}
-function gif(frames,delay){const b=[],w=v=>b.push(v&255,v>>8&255),s=t=>{for(const c of t)b.push(c.charCodeAt(0))};
- s("GIF89a");w(W);w(H);b.push(247,0,0);
+function gif(frames,delay){const b=[],w=v=>b.push(v&255,v>>8&255);
+ for(const c of"GIF89a")b.push(c.charCodeAt(0));w(W);w(H);b.push(247,0,0);
  for(let i=0;i<256;i++)b.push((i>>5)*255/7|0,((i>>2)&7)*255/7|0,(i&3)*85);
- b.push(33,255,11);s("NETSCAPE2.0");b.push(3,1,0,0,0);
- for(const ix of frames){b.push(33,249,4,0);w(delay);b.push(0,0,44);w(0);w(0);w(W);w(H);b.push(0,8);
-  const z=lzw(ix);for(let i=0;i<z.length;i+=255){const c=z.slice(i,i+255);b.push(c.length);for(const v of c)b.push(v)}b.push(0)}
- b.push(59);return new Uint8Array(b)}
+ b.push(33,255,11);for(const c of"NETSCAPE2.0")b.push(c.charCodeAt(0));b.push(3,1,0,0,0);
+ const parts=[new Uint8Array(b)];
+ for(const z of frames){const h=[33,249,4,0,delay&255,delay>>8&255,0,0,44,0,0,0,0,W&255,W>>8&255,H&255,H>>8&255,0,8],n=Math.ceil(z.length/255),o=new Uint8Array(h.length+z.length+n+1);o.set(h,0);let q=h.length;
+  for(let k=0;k<z.length;k+=255){const c=Math.min(255,z.length-k);o[q++]=c;o.set(z.subarray(k,k+c),q);q+=c}o[q++]=0;parts.push(o)}
+ parts.push(new Uint8Array([59]));return parts}
 $("go").onclick=async()=>{if(!img||busy)return;busy=true;$("res").innerHTML="";
  try{const N=+$("nf").value,fr=[];
   for(let k=0;k<N;k++){draw(k/N);const d=cx.getImageData(0,0,W,H).data,ix=new Uint8Array(W*H);
-   for(let i=0;i<ix.length;i++)ix[i]=(d[i*4]>>5)<<5|(d[i*4+1]>>5)<<2|d[i*4+2]>>6;fr.push(ix);
+   for(let i=0;i<ix.length;i++)ix[i]=(d[i*4]>>5)<<5|(d[i*4+1]>>5)<<2|d[i*4+2]>>6;fr.push(Uint8Array.from(lzw(ix)));
    $("pg").textContent="Calcul "+Math.round((k+1)/N*100)+" %";await new Promise(r=>setTimeout(r))}
   const seq=ck("m_pp")?fr.concat(fr.slice(1,-1).reverse()):fr;
-  const blob=new Blob([gif(seq,Math.round(100/$("fps").value))],{type:"image/gif"});
+  $("pg").textContent="Assemblage du GIF…";const blob=new Blob(gif(seq,Math.max(2,Math.round(100/$("fps").value))),{type:"image/gif"});
   const u=URL.createObjectURL(blob),a=document.createElement("a"),ms=document.createElement("div"),im=new Image(),rd=new FileReader();
   a.href=u;a.download="geometrie-sacree.gif";a.className="btn";a.style.cssText="display:inline-block;text-decoration:none";a.textContent="⬇ Télécharger le GIF ("+Math.round(blob.size/1024)+" Ko)";ms.style.fontSize="13px";
   a.onclick=async e=>{if(!dl){ms.textContent="Téléchargement lancé : geometrie-sacree.gif arrive dans le dossier Téléchargements. Sinon : clic droit sur le GIF ci-dessous puis « Enregistrer l’image sous ».";return}
@@ -296,7 +297,8 @@ $("go").onclick=async()=>{if(!img||busy)return;busy=true;$("res").innerHTML="";
   const parts=[a];
   if(window.showSaveFilePicker){const b2=document.createElement("button");b2.textContent="Enregistrer sous…";
    b2.onclick=async()=>{try{const h=await showSaveFilePicker({suggestedName:"geometrie-sacree.gif",types:[{description:"GIF",accept:{"image/gif":[".gif"]}}]});const w=await h.createWritable();await w.write(blob);await w.close();ms.textContent="GIF enregistré ✔"}catch(err){ms.textContent=err&&err.name=="AbortError"?"Enregistrement annulé.":"« Enregistrer sous » indisponible ici ("+((err&&err.name)||"erreur")+")."}};parts.push(b2)}
-  parts.push(o,ms,im);$("res").append(...parts);$("pg").textContent="Terminé ✔"}
+  parts.push(o,ms,im);$("res").append(...parts);$("pg").textContent="Terminé ✔ ("+seq.length+" images, "+Math.round(blob.size/1024)+" Ko)";
+  if(!dl){ms.textContent="Téléchargement lancé automatiquement : geometrie-sacree.gif (dossier Téléchargements). Sinon, cliquez sur le bouton ci-dessus.";setTimeout(()=>{try{a.click()}catch(e){}},400)}}
  catch(e){$("pg").textContent="Erreur : "+((e&&e.message)||e)}
  busy=false;dirty=1};
 const dlp=(window.claude&&claude.use)?Promise.resolve(claude.use("downloads")).catch(()=>null):Promise.resolve(null);
