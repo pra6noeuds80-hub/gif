@@ -24,7 +24,7 @@ button:hover{background:var(--or);color:var(--bg)}
 .mod{border-top:1px solid var(--ln);padding:5px 0}input:disabled,select:disabled{opacity:.35}
 #res img{max-width:100%;border:1px solid var(--or);border-radius:6px;margin-top:6px}
 </style></head><body>
-<h1>✦ Atelier GIF géométrique ✦ <small style="font:12px system-ui;opacity:.6">v9</small></h1>
+<h1>✦ Atelier GIF géométrique ✦ <small style="font:12px system-ui;opacity:.6">v10</small></h1>
 <p class="sub">Importez une image : elle reste intacte, telle quelle. La géométrie en dessous ne sert qu’à la transformer ensuite : couleurs, formes tendues, effets et géométrie sacrée discrète.</p>
 <div class="wrap">
 <div class="stage"><canvas id="cv" width="420" height="420"></canvas>
@@ -90,6 +90,7 @@ button:hover{background:var(--or);color:var(--bg)}
 <fieldset><legend>Exporter</legend>
 <label>Nombre d’images <input type="range" id="nf" min="12" max="60" value="36"></label>
 <label>Images par seconde <input type="range" id="fps" min="8" max="30" value="18"></label>
+<label>Couleurs du GIF <select id="q_col"><option value="ad" selected>palette adaptée à l’image (nette)</option><option value="tr">palette adaptée + tramage (dégradés plus doux)</option></select></label>
 <button id="go">Créer le GIF</button> <button id="tst">Tester le téléchargement</button> <span id="pg"></span><div id="res"></div></fieldset>
 </div></div>
 <script>
@@ -273,9 +274,24 @@ function lzw(ix){const by=[];let cu=0,nb=0,size=9,next=258;const emit=c=>{cu|=c<
  for(let i=1;i<ix.length;i++){const k=p<<8|ix[i],v=d.get(k);if(v!==undefined){p=v;continue}
   emit(p);d.set(k,next++);if(next-1>=(1<<size)&&size<12)size++;if(next>=4096){emit(256);d.clear();size=9;next=258}p=ix[i]}
  emit(p);emit(257);if(nb>0)by.push(cu&255);return by}
-function gif(frames,delay){const b=[],w=v=>b.push(v&255,v>>8&255);
+function palette(hist){const mk=bins=>{let rl=31,rh=0,gl=31,gh=0,bl=31,bh=0,n=0;for(const k of bins){const r=k>>10,g=k>>5&31,b=k&31;if(r<rl)rl=r;if(r>rh)rh=r;if(g<gl)gl=g;if(g>gh)gh=g;if(b<bl)bl=b;if(b>bh)bh=b;n+=hist[k]}return{bins,n,dr:rh-rl,dg:gh-gl,db:bh-bl}};
+ const all=[];for(let i=0;i<32768;i++)if(hist[i])all.push(i);const bx=[mk(all)];
+ while(bx.length<256){let bi=-1,bs=0;bx.forEach((x,i)=>{if(x.bins.length>1){const sc=x.n*(Math.max(x.dr,x.dg,x.db)+1);if(sc>bs){bs=sc;bi=i}}});if(bi<0)break;
+  const x=bx[bi],ch=x.dr>=x.dg&&x.dr>=x.db?10:x.dg>=x.db?5:0;x.bins.sort((a,b)=>((a>>ch)&31)-((b>>ch)&31));
+  let acc=0,cut=1;for(let i=0;i<x.bins.length;i++){acc+=hist[x.bins[i]];if(acc>=x.n/2){cut=Math.max(1,Math.min(x.bins.length-1,i+1));break}}
+  bx.splice(bi,1,mk(x.bins.slice(0,cut)),mk(x.bins.slice(cut)))}
+ const pal=new Uint8Array(768);bx.forEach((x,i)=>{let r=0,g=0,b=0,n=0;for(const k of x.bins){const c=hist[k];r+=(k>>10)*c;g+=(k>>5&31)*c;b+=(k&31)*c;n+=c}n=n||1;pal[i*3]=Math.min(255,Math.round(r/n*8+4));pal[i*3+1]=Math.min(255,Math.round(g/n*8+4));pal[i*3+2]=Math.min(255,Math.round(b/n*8+4))});
+ return{pal,n:bx.length}}
+function mkLut(P){const lut=new Uint8Array(32768),p=P.pal;for(let k=0;k<32768;k++){const r=(k>>10)*8+4,g=(k>>5&31)*8+4,b=(k&31)*8+4;let bi=0,bd=1e9;for(let j=0;j<P.n;j++){const dr=r-p[j*3],dg=g-p[j*3+1],db=b-p[j*3+2],d=dr*dr*3+dg*dg*4+db*db*2;if(d<bd){bd=d;bi=j}}lut[k]=bi}return lut}
+const BY=[0,8,2,10,12,4,14,6,3,11,1,9,15,7,13,5];
+function toIdx(q,lut,dith){const o=new Uint8Array(q.length);
+ if(!dith){for(let i=0;i<q.length;i++)o[i]=lut[q[i]];return o}
+ for(let y=0,i=0;y<H;y++)for(let x=0;x<W;x++,i++){const c=q[i],t=(BY[(y&3)*4+(x&3)]-7.5)*1.1;let r=((c>>10)<<3)+4+t,g=(((c>>5)&31)<<3)+4+t,b=((c&31)<<3)+4+t;
+  r=r<0?0:r>255?255:r;g=g<0?0:g>255?255:g;b=b<0?0:b>255?255:b;o[i]=lut[(r>>3)<<10|(g>>3)<<5|b>>3]}
+ return o}
+function gif(frames,delay,pal){const b=[],w=v=>b.push(v&255,v>>8&255);
  for(const c of"GIF89a")b.push(c.charCodeAt(0));w(W);w(H);b.push(247,0,0);
- for(let i=0;i<256;i++)b.push((i>>5)*255/7|0,((i>>2)&7)*255/7|0,(i&3)*85);
+ for(let i=0;i<768;i++)b.push(pal[i]|0);
  b.push(33,255,11);for(const c of"NETSCAPE2.0")b.push(c.charCodeAt(0));b.push(3,1,0,0,0);
  const parts=[new Uint8Array(b)];
  for(const z of frames){const h=[33,249,4,0,delay&255,delay>>8&255,0,0,44,0,0,0,0,W&255,W>>8&255,H&255,H>>8&255,0,8],n=Math.ceil(z.length/255),o=new Uint8Array(h.length+z.length+n+1);o.set(h,0);let q=h.length;
@@ -283,11 +299,15 @@ function gif(frames,delay){const b=[],w=v=>b.push(v&255,v>>8&255);
  parts.push(new Uint8Array([59]));return parts}
 $("go").onclick=async()=>{if(!img||busy)return;busy=true;$("res").innerHTML="";
  try{const N=+$("nf").value,fr=[];
-  for(let k=0;k<N;k++){draw(k/N);const d=cx.getImageData(0,0,W,H).data,ix=new Uint8Array(W*H);
-   for(let i=0;i<ix.length;i++)ix[i]=(d[i*4]>>5)<<5|(d[i*4+1]>>5)<<2|d[i*4+2]>>6;fr.push(Uint8Array.from(lzw(ix)));
-   $("pg").textContent="Calcul "+Math.round((k+1)/N*100)+" %";await new Promise(r=>setTimeout(r))}
+  const hist=new Int32Array(32768),raw=[];
+  for(let k=0;k<N;k++){draw(k/N);const d=cx.getImageData(0,0,W,H).data,q=new Uint16Array(W*H);
+   for(let i=0,j=0;j<q.length;i+=4,j++){const c=(d[i]>>3)<<10|(d[i+1]>>3)<<5|d[i+2]>>3;q[j]=c;hist[c]++}
+   raw.push(q);$("pg").textContent="Calcul "+Math.round((k+1)/N*50)+" %";await new Promise(r=>setTimeout(r))}
+  $("pg").textContent="Choix des couleurs…";await new Promise(r=>setTimeout(r));
+  const pal=palette(hist),lut=mkLut(pal),dith=$("q_col").value=="tr";
+  for(let k=0;k<N;k++){fr.push(Uint8Array.from(lzw(toIdx(raw[k],lut,dith))));raw[k]=null;$("pg").textContent="Compression "+(50+Math.round((k+1)/N*50))+" %";await new Promise(r=>setTimeout(r))}
   const seq=ck("m_pp")?fr.concat(fr.slice(1,-1).reverse()):fr;
-  $("pg").textContent="Assemblage du GIF…";const blob=new Blob(gif(seq,Math.max(2,Math.round(100/$("fps").value))),{type:"image/gif"});
+  $("pg").textContent="Assemblage du GIF…";const blob=new Blob(gif(seq,Math.max(2,Math.round(100/$("fps").value)),pal.pal),{type:"image/gif"});
   const u=URL.createObjectURL(blob),a=document.createElement("a"),ms=document.createElement("div"),im=new Image(),rd=new FileReader();
   a.href=u;a.download="geometrie-sacree.gif";a.className="btn";a.style.cssText="display:inline-block;text-decoration:none";a.textContent="⬇ Télécharger le GIF ("+Math.round(blob.size/1024)+" Ko)";ms.style.fontSize="13px";
   a.onclick=async e=>{if(!dl){ms.textContent="Téléchargement lancé : geometrie-sacree.gif arrive dans le dossier Téléchargements. Sinon : clic droit sur le GIF ci-dessous puis « Enregistrer l’image sous ».";return}
