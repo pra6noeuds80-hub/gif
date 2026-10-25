@@ -24,7 +24,7 @@ button:hover{background:var(--or);color:var(--bg)}
 .mod{border-top:1px solid var(--ln);padding:5px 0}input:disabled,select:disabled{opacity:.35}
 #res img{max-width:100%;border:1px solid var(--or);border-radius:6px;margin-top:6px}
 </style></head><body>
-<h1>✦ Atelier GIF géométrique ✦ <small style="font:12px system-ui;opacity:.6">v14</small></h1>
+<h1>✦ Atelier GIF géométrique ✦ <small style="font:12px system-ui;opacity:.6">v15</small></h1>
 <p class="sub">Importez une image : elle reste intacte, telle quelle. La géométrie en dessous ne sert qu’à la transformer ensuite : couleurs, formes tendues, effets et géométrie sacrée discrète.</p>
 <div class="wrap">
 <div class="stage"><canvas id="cv" width="420" height="420"></canvas>
@@ -112,6 +112,8 @@ button:hover{background:var(--or);color:var(--bg)}
 </fieldset>
 <fieldset><legend>SVG à insérer</legend>
 <input type="file" id="f_svg" accept=".svg,image/svg+xml"> <button id="svg_ex">SVG d’exemple</button> <button id="svg_x">Retirer</button>
+<label>Ou collez le code SVG ici <textarea id="s_code" rows="6" spellcheck="false" placeholder="&lt;svg viewBox=&quot;0 0 100 100&quot;&gt; … &lt;/svg&gt;" style="width:100%;font:12px monospace;background:var(--bg);color:var(--tx);border:1px solid var(--ln);border-radius:6px;padding:6px;box-sizing:border-box"></textarea></label>
+<button id="s_ins">Insérer ce code</button> <span id="s_msg" style="font-size:13px"></span>
 <div class="mod"><label><input type="checkbox" id="s_on"> Afficher le SVG</label>
 <label>Mode <select id="s_mode"><option value="sur">par-dessus l’image</option><option value="dec">découpe (l’image n’apparaît que dans le SVG)</option><option value="ref">rempli par l’image (reflet agrandi)</option></select></label>
 <label>Taille <input type="range" id="s_sz" min="10" max="150" value="60"></label>
@@ -285,14 +287,19 @@ function spatial(t){const q=[["n_ax",mAx],["n_mos",mMo],["n_pli",mPl],["q_conf",
 let svgImg=null,svgAsp=1;
 const lc=document.createElement("canvas"),lx=lc.getContext("2d"),mk=document.createElement("canvas"),mx=mk.getContext("2d"),sk=document.createElement("canvas"),kx=sk.getContext("2d");
 const fit=c=>{if(c.width!=W||c.height!=H){c.width=W;c.height=H}else c.getContext("2d").clearRect(0,0,W,H)};
-function setSvg(t){const d=new DOMParser().parseFromString(t,"image/svg+xml"),r=d.documentElement;
- if(!r||r.nodeName.toLowerCase()!="svg"||d.querySelector("parsererror")){$("pg").textContent="SVG illisible.";return}
+function svgMsg(m){$("s_msg").textContent=m;$("pg").textContent=m}
+function setSvg(t){t=String(t||"");const a=t.search(/<svg[\s>]/i),z=t.toLowerCase().lastIndexOf("</svg>");
+ if(a<0||z<0){svgMsg("Code SVG introuvable : il doit commencer par <svg et finir par </svg>.");return}
+ t=t.slice(a,z+6);if(!/xmlns\s*=/.test(t))t=t.replace(/<svg/i,'<svg xmlns="http://www.w3.org/2000/svg"');
+ if(/xlink:/.test(t)&&!/xmlns:xlink/.test(t))t=t.replace(/<svg/i,'<svg xmlns:xlink="http://www.w3.org/1999/xlink"');
+ const d=new DOMParser().parseFromString(t,"image/svg+xml"),r=d.documentElement,pe=d.querySelector("parsererror");
+ if(!r||r.nodeName.toLowerCase()!="svg"||pe){const mt=pe&&/line (\d+) at column (\d+)/.exec(pe.textContent);svgMsg("Code SVG invalide"+(mt?" (erreur ligne "+mt[1]+", colonne "+mt[2]+")":"")+" : vérifiez que chaque balise est bien fermée.");return}
  let vw,vh;const vb=(r.getAttribute("viewBox")||"").trim().split(/[\s,]+/).map(Number);
  if(vb.length==4&&vb[2]>0&&vb[3]>0){vw=vb[2];vh=vb[3]}else{vw=parseFloat(r.getAttribute("width"))||300;vh=parseFloat(r.getAttribute("height"))||300}
  r.setAttribute("width",vw);r.setAttribute("height",vh);if(!r.getAttribute("xmlns"))r.setAttribute("xmlns","http://www.w3.org/2000/svg");
  r.querySelectorAll("script,foreignObject").forEach(n=>n.remove());
- const im=new Image();im.onload=()=>{svgImg=im;svgAsp=vw/vh;$("s_on").checked=true;$("s_on").dispatchEvent(new Event("change"));dirty=1;$("pg").textContent="SVG inséré ✔"};
- im.onerror=()=>{$("pg").textContent="SVG illisible."};
+ const im=new Image();im.onload=()=>{svgImg=im;svgAsp=vw/vh;$("s_on").checked=true;$("s_on").dispatchEvent(new Event("change"));dirty=1;svgMsg("SVG inséré ✔")};
+ im.onerror=()=>{svgMsg("Ce code SVG ne peut pas être dessiné.")};
  im.src="data:image/svg+xml;charset=utf-8,"+encodeURIComponent(new XMLSerializer().serializeToString(r))}
 function exSvg(){let p="";for(let k=0;k<6;k++)p+='<ellipse cx="100" cy="58" rx="20" ry="46" transform="rotate('+k*60+' 100 100)"/>';
  return'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" width="200" height="200"><g fill="#ffffff" fill-opacity=".9" stroke="#f4cd6e" stroke-width="3">'+p+'<circle cx="100" cy="100" r="16"/></g></svg>'}
@@ -484,8 +491,10 @@ let dl=null;dlp.then(v=>{dl=v});
 $("tst").onclick=()=>{const g=Uint8Array.from(atob("R0lGODdhYABgAIYAAPrNUNw8h9o8iNg8idY8itQ8i9I8jNA8jc48jsw8j8o8kMg8kcY8ksQ8k8I8lMA8lb48lrw8l7o8mLg8mbY8mrQ8m7I8nLA8na48nqw8n6o8oKg8oaY8oqQ8o6I8pKA8pZ48ppw8p5o8qJg8qZY8qpQ8q5I8rJA8rY48row8r4o8sIg8sYY8soQ8s4I8tIA8tX48tnw8t3o8uHg8uXY8unQ8u3I8vHA8vW48vmw8v2o8wGg8wWY8wmQ8w2I8xGA8xV48xlw8x1o8yFg8yVY8ylQ8y1I8zFA8zU48zkw8z0o80Eg80UY80kQ800I81EA81T481jw81zo82Dg82TY82jQ82zI83DA83S483iw83yo84Cg84SY84iQ84yI85CA85R485rQoWgAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACwAAAAAYABgAEAI/wDBCBxIsKDBgwgTKlzIsGFBLBAjSpxIsaLFixgzatw4EYrHjyBDihxJsqTJkyhThkTCsqXLlzBjykQCoKbNmzhz1pzJsydMIECDCh1KtKjOo0iT6izKtGlQHFCjSp1KFarSo2Gyat2q9arOqmCrwhhLtqzZszC82uTKtm1XtQDQyj2Loq7du3jz1oV70y1Xvjb1CtYLorDhw4gTKwbMOKfix5ANY5hMubLly5gzY2h8U7Pnz5chiB5NurTp06hTq17NunVpBLBjy55Nu7bt27hz6949m4vv38CDCx9OvLjx48iTB6fCvLnz59CjS59Ovbr168+ZaN/Ovbv37+DDi/8fT758dyLo06tfz759es5w3cufn56H/fv48+vHD7//zf0ABkjDgAQWaOCBNADm14KAIejggSxEKOGEFFbIgoILugWYhRxWSMKHIIYo4ogh+mciiSimyMGKLLbo4oswsmiiUjHWaCOLFOSo44489ujjj0AGKeSQRPLIwJFIJqnkkkw26eSTUEYppZIEVGnllVhmqeWWXHbp5ZdgYunFmGSWaeaZaKap5ppstummmVrEKeecdNZp55145qnnnnzSacWfgAYq6KCEFmrooYgmqqigUjTq6KOQRirppJRWaumlmELqxKacdurpp6CGKuqopJZqqqdKpKrqqqy26uqrrir/BeustNZqxK245qrrrrzuOuNNvQYr7K5CFGvsscgmq6wQv3q17LPQCuHDtNRWa+211jbLGLbcduuDDuCGK+645IYLX1vwlauuuja06+678MbbLoYZbgWYvPjKK8O+/Pbr778y8FWvX3wBbPC/LiSs8MIMN+yCwAOjC5fDFDeswsUYZ6zxxhfTGzFgHIfMsQkkl2zyySiXfC5b8KXssssixCzzzDTXTLO2gNms884ieODzz0AHLfTQHuCcFNFIJ+2BBkw37fTTUEcNNc5SV2011BZkrfXWXHft9ddeKwX22GSXLcHZaKet9tpst+3223DHLbfaDtRt991456333nz3/+3334DjrcDghBdu+OGIJ6744ow37rjhBkQu+eSUV2755ZhnrvnmnFMuwOeghy766KSXbvrpqKeuuuhftO7667DHLvvstNdu++24w97F7rz37vvvwAcv/PDEF2+871skr/zyzDfv/PPQRy/99NQzn8X12Gev/fbcd+/99+CHL772V5Rv/vnop6/++uy37/778KNfxfz012///fjnr//+/Pfvv/1TCKAAB0jAAhrwgAhMoAIXyEACRuGBEIygBCdIwQpa8IIYzKAGJfiEDnrwgyAMoQhHSMISmvCEKARhE1bIwha68IUwjKEMZ0jDGtrQhUvIoQ53yMMe+vCHQAyiEP+HSEQeJuGISEyiEpfIxCYmETBOjKIUnXiEKlrxiljMoha12KwtevGLWiyCGMdIxjKa8YxlNBoA0MjGNpZxCHCMoxznSMc6wlGNObGjHvcIxyD48Y+ADKQgB4lHpAzykIj84w8WychGOvKRjyxkUiBJyUousgeYzKQmN8lJTUrSK50MpSh3QMpSmvKUqCzlJ9WSyla2MgewjKUsZ0nLWDYmQ42ppS51eYNe+vKXwAxmLxkTsTAwRpjIFGYNlsnMZjrzmTXwWDEBA81qPnMG2MymNrfJzRlArJj2gks3x8nNGJjznOhMpzpj8E1wZoUv64ynOl9Az3ra8574fEE73cn/l3z6E58tCKhAB0rQgrZgn+Dki0EXWtAVOPShEI2oRFcgzY/xZaIYlWgKNsrRjnr0oxslpkX5AtKSgvQEKE2pSlfK0pTekkGMaalMZVqCmtr0pjjNqU1X6RWd+tSnIwiqUIdK1KIOladJMapSlxqCpjr1qVCNalSRihOpWvWqTf2AVrfK1a569atUrclXx0rWrXbgrGhNq1rXytaz8rStcI3rWTdA17ra9a54zetd1ajXvvr1rhkIrGAHS9jCGtawzTqsYhdr2As49rGQjaxkJ0tZyAKmspjNbGUrwNnOevazoA2taEdL2tKa9rSfnYBqV8va1rr2tbCNrWxnS9vasbY2ArjNrW53y9ve+va3wA2ucIe72wcY97jITa5yl8vc5jr3udCNbnIbQN3qWve62M2udrfL3e5697vXXYB4x0ve8pr3vOhNr3rXy972ljcB8I2vfOdL3/ra9774za9+9zvfA/j3vwAOsIAHTOACG/jACE5wgAvA4AY7+MEQjrCEJ0zhClv4wg8egIY3zOEOe/jDIA6xiEdM4hJ3OAAoTrGKV8ziFrv4xTCOsYxnvOKAAAA7"),c=>c.charCodeAt(0)),bl=new Blob([g],{type:"image/gif"});
  if(dl){dl.save({filename:"test.gif",data:bl}).then(()=>{$("pg").textContent="Test enregistré ✔"}).catch(e=>{$("pg").textContent="Test : "+((e&&e.code)||"erreur")});return}
  const u=URL.createObjectURL(bl),a=document.createElement("a");a.href=u;a.download="test.gif";(document.body||document.documentElement).appendChild(a);a.click();a.remove();$("pg").textContent="Test lancé : cherchez test.gif (une image bleue avec un disque doré) dans Téléchargements."};
-$("f_svg").onchange=e=>{const f=e.target.files[0];if(!f)return;if(f.size>3e6){$("pg").textContent="SVG trop lourd (3 Mo max).";return}f.text().then(setSvg)};
-$("svg_ex").onclick=()=>setSvg(exSvg());
+$("f_svg").onchange=e=>{const f=e.target.files[0];if(!f)return;if(f.size>3e6){$("pg").textContent="SVG trop lourd (3 Mo max).";return}f.text().then(t=>{$("s_code").value=t;setSvg(t)})};
+$("svg_ex").onclick=()=>{const t=exSvg();$("s_code").value=t;setSvg(t)};
+$("s_ins").onclick=()=>setSvg($("s_code").value);
+$("s_code").addEventListener("paste",()=>setTimeout(()=>setSvg($("s_code").value),60));
 $("svg_x").onclick=()=>{svgImg=null;$("s_on").checked=false;$("s_on").dispatchEvent(new Event("change"));dirty=1};
 $("e_on").addEventListener("change",()=>{if(ck("e_on"))eraseApply();else eraseRestore()});
 ["e_tol","e_dil","e_mode","e_col"].forEach(id=>$(id).addEventListener("change",()=>{if(ck("e_on"))eraseApply()}));
